@@ -49,9 +49,15 @@ def preprocess_image(image):
 def ocr_single_image(image, lang='eng'):
     """Run optimized Tesseract OCR on a PIL Image."""
     prep_img = preprocess_image(image)
-    # Tesseract configuration for standard accuracy
     config = r'--oem 1 --psm 3'
-    text = pytesseract.image_to_string(prep_img, lang=lang, config=config)
+    try:
+        text = pytesseract.image_to_string(prep_img, lang=lang, config=config)
+    except Exception as e:
+        print(f"Tesseract lang '{lang}' error: {e}. Falling back to 'eng'")
+        try:
+            text = pytesseract.image_to_string(prep_img, lang='eng', config=config)
+        except Exception:
+            text = ""
     return text.strip()
 
 def process_pdf_ocr(pdf_bytes, lang='eng'):
