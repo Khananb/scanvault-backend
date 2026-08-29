@@ -16,4 +16,5 @@ COPY server_backend.py .
 
 EXPOSE 5050
 
-CMD ["python", "server_backend.py"]
+# Use Gunicorn WSGI server for multi-worker production stability
+CMD ["gunicorn", "--bind", "0.0.0.0:5050", "--workers", "2", "--timeout", "120", "server_backend:app"]
