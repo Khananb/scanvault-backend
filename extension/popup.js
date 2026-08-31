@@ -1,7 +1,7 @@
 // ScanVault Chrome Extension - High Performance OCR, Snipping, PDF Cloud & Post-Processing
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const RENDER_BACKEND_URL = 'https://scanvault-backend-1.onrender.com';
+  const RENDER_BACKEND_URL = 'https://scanvault-backend-2.onrender.com';
   const TUNNEL_BACKEND_URL = 'https://ocrhinglish.in';
   const LAN_BACKEND_URL = 'http://192.168.0.192:9090';
   const DEFAULT_BACKEND_URL = RENDER_BACKEND_URL;
@@ -71,8 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return new Promise((resolve) => {
       chrome.storage.local.get(['scanvault_backend_url', 'scanvault_ocr_lang'], (res) => {
         let savedUrl = res.scanvault_backend_url;
-        // Fix old defunct url without '-1'
-        if (!savedUrl || savedUrl === 'https://scanvault-backend.onrender.com' || savedUrl === 'https://scanvault-backend.onrender.com/') {
+        if (!savedUrl || savedUrl.includes('scanvault-backend.onrender.com') || savedUrl.includes('scanvault-backend-1.onrender.com')) {
           currentBackendUrl = RENDER_BACKEND_URL;
           chrome.storage.local.set({ scanvault_backend_url: RENDER_BACKEND_URL });
         } else {

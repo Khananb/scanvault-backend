@@ -1,12 +1,12 @@
 // ScanVault Chrome Extension - Background Service Worker
 
-const DEFAULT_BACKEND_URL = 'https://scanvault-backend-1.onrender.com';
+const DEFAULT_BACKEND_URL = 'https://scanvault-backend-2.onrender.com';
 
 async function getBackendUrl() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['scanvault_backend_url'], (res) => {
       let url = res.scanvault_backend_url;
-      if (!url || url === 'https://scanvault-backend.onrender.com' || url === 'https://scanvault-backend.onrender.com/') {
+      if (!url || url.includes('scanvault-backend.onrender.com') || url.includes('scanvault-backend-1.onrender.com')) {
         url = DEFAULT_BACKEND_URL;
         chrome.storage.local.set({ scanvault_backend_url: DEFAULT_BACKEND_URL });
       }
