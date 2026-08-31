@@ -20,5 +20,5 @@ COPY server_backend.py .
 
 EXPOSE 5050
 
-# Use Gunicorn WSGI server for production stability
-CMD ["gunicorn", "--bind", "0.0.0.0:5050", "--workers", "2", "--timeout", "120", "server_backend:app"]
+# Use Gunicorn WSGI server with dynamic PORT binding for Render support
+CMD exec gunicorn --bind 0.0.0.0:${PORT:-5050} --workers 2 --timeout 120 server_backend:app

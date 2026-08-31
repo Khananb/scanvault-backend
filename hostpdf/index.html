@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HostPDF - Share PDFs Instantly</title>
+    <!-- Use Inter font for a modern minimal look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            overflow: hidden;
+            /* Mesh gradient background for modern look */
+            background: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                        radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                        radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            background-color: #0d0f12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Glassmorphic Container */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+            background: linear-gradient(to right, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: #9ca3af;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        /* Drag and Drop Zone */
+        .drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 50px 20px;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #a78bfa;
+            background: rgba(167, 139, 250, 0.05);
+        }
+
+        .drop-zone svg {
+            width: 48px;
+            height: 48px;
+            color: #a78bfa;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-weight: 400;
+            color: #d1d5db;
+        }
+
+        .drop-zone span {
+            color: #9ca3af;
+            font-size: 12px;
+            display: block;
+            margin-top: 5px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Processing State */
+        .processing-state, .success-state {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .loader {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: #a78bfa;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Success State */
+        .link-container {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .link-container input {
+            background: none;
+            border: none;
+            color: #fff;
+            outline: none;
+            width: 100%;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .copy-btn {
+            background: #a78bfa;
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #8b5cf6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-card" id="main-card">
+        <div class="header">
+            <h1>HostPDF</h1>
+            <p>Upload your PDF and share it instantly with anyone.</p>
+        </div>
+
+        <!-- Upload State -->
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            <p>Click or drag PDF here to upload</p>
+            <span>Maximum file size: 50MB</span>
+            <input type="file" id="file-input" accept="application/pdf">
+        </div>
+
+        <!-- Processing State -->
+        <div class="processing-state" id="processing-state">
+            <div class="loader"></div>
+            <p style="color: #d1d5db; margin: 0;">Generating secure link...</p>
+        </div>
+
+        <!-- Success State -->
+        <div class="success-state" id="success-state">
+            <svg style="width:48px;height:48px;color:#34d399;margin-bottom:15px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p style="color: #fff; margin: 0; font-weight: 600; font-size: 18px;" id="file-name-display">document.pdf</p>
+            <p style="color: #9ca3af; font-size: 14px; margin-top: 5px;">Your PDF is ready to share!</p>
+            
+            <div class="link-container">
+                <input type="text" id="share-link" readonly value="http://localhost:8000/view/1a2b3c4d5e">
+                <button class="copy-btn" onclick="copyLink()" id="copy-btn">Copy</button>
+            </div>
+            
+            <a href="#" onclick="resetUI()" style="color: #a78bfa; font-size: 13px; margin-top: 20px; display: block; text-decoration: none;">Upload another file</a>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const processingState = document.getElementById('processing-state');
+        const successState = document.getElementById('success-state');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const shareLink = document.getElementById('share-link');
+        const copyBtn = document.getElementById('copy-btn');
+
+        // Handle Drag & Drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+            if (file.type !== 'application/pdf') {
+                alert('Please upload a valid PDF file.');
+                return;
+            }
+
+            fileNameDisplay.innerText = file.name;
+            dropZone.style.display = 'none';
+            processingState.style.display = 'flex';
+
+            // Simulate upload latency
+            setTimeout(() => {
+                processingState.style.display = 'none';
+                successState.style.display = 'flex';
+                
+                // Generate a fake link for demo purposes
+                const randomId = Math.random().toString(36).substring(2, 10);
+                shareLink.value = `http://localhost:8000/view/${randomId}`;
+            }, 1500);
+        }
+
+        function copyLink() {
+            shareLink.select();
+            document.execCommand('copy');
+            copyBtn.innerText = 'Copied!';
+            copyBtn.style.background = '#34d399';
+            setTimeout(() => {
+                copyBtn.innerText = 'Copy';
+                copyBtn.style.background = '#a78bfa';
+            }, 2000);
+        }
+
+        function resetUI() {
+            successState.style.display = 'none';
+            dropZone.style.display = 'block';
+            fileInput.value = '';
+        }
+    </script>
+</body>
+</html>

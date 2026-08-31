@@ -7,6 +7,7 @@ import os
 import io
 import re
 import sys
+import json
 import uuid
 import base64
 import argparse
@@ -22,8 +23,53 @@ from pdf2image import convert_from_bytes
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+OCR_API_URL = os.environ.get('OCR_API_URL', 'https://ocrhinglish.in/api/v1/ocr')
+OCR_API_KEY = os.environ.get('OCR_API_KEY', 'ocr_live_R5q2rZVGcUujqYkZMBI2DHJIZuoaMxzCqapwjZumzhk')
+
 STORAGE_DIR = os.path.expanduser('~/pdf_host')
 os.makedirs(STORAGE_DIR, exist_ok=True)
+
+def call_upstream_ocr(file_bytes, filename="image.png", lang="eng"):
+    """
+    High-speed hardware accelerated OCR via upstream API.
+    """
+    if not OCR_API_KEY or not OCR_API_URL:
+        return None
+    try:
+        boundary = uuid.uuid4().hex
+        body = bytearray()
+        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n{lang}\r\n'.encode('utf-8'))
+        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\nContent-Type: application/octet-stream\r\n\r\n'.encode('utf-8'))
+        body.extend(file_bytes)
+        body.extend(f'\r\n--{boundary}--\r\n'.encode('utf-8'))
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'x-api-key': OCR_API_KEY,
+            'Content-Type': f'multipart/form-data; boundary={boundary}'
+        }
+        
+        req = urllib.request.Request(OCR_API_URL, data=bytes(body), headers=headers, method='POST')
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            if resp.status == 200:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                text = (res_data.get('text') or '').strip()
+                pages = res_data.get('pages', 1)
+                words = len(text.split()) if text else 0
+                chars = len(text)
+                return {
+                    "success": True,
+                    "text": text,
+                    "pages": pages,
+                    "word_count": words,
+                    "char_count": chars,
+                    "duration_ms": res_data.get('duration_ms', 0),
+                    "engine": "hardware_accelerated_api"
+                }
+    except Exception as e:
+        print(f"Upstream OCR API notice (will use local fallback): {e}")
+        return None
+    return None
 
 def get_base_url():
     """Dynamically determine public base URL respecting proxies/Cloudflare tunnels."""
@@ -32,39 +78,98 @@ def get_base_url():
     return f"{forwarded_proto}://{forwarded_host}"
 
 def preprocess_image(image):
-    """Enhance image quality for higher OCR accuracy."""
+    """
+    Multi-stage image enhancement pipeline for maximum Tesseract OCR accuracy:
+    1. Grayscale & RGBA normalization
+    2. Resampling & Smart Upscaling for low-resolution/small images (< 1500px)
+    3. Dynamic Contrast & Sharpness Tuning
+    4. Adaptive Binarization (Separating text from background noise/shadows)
+    """
     try:
         if image.mode in ('RGBA', 'P', 'LA'):
             image = image.convert('RGB')
         
+        # 1. Smart Upscaling: Ensure min dimension is at least 1500px for optimal OCR DPI
+        w, h = image.size
+        min_dim = min(w, h)
+        if min_dim < 1500:
+            scale_factor = max(2.0, 1800.0 / min_dim)
+            # Limit maximum dimension to 3600px to prevent excessive RAM usage
+            target_w = int(min(w * scale_factor, 3600))
+            target_h = int(min(h * scale_factor, 3600))
+            resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+            image = image.resize((target_w, target_h), resample_filter)
+
+        # 2. Grayscale conversion & Auto-contrast adjustment
         gray = image.convert('L')
-        enhanced = ImageOps.autocontrast(gray, cutoff=2)
-        contrast = ImageEnhance.Contrast(enhanced)
-        final_img = contrast.enhance(1.4)
-        sharpness = ImageEnhance.Sharpness(final_img)
-        return sharpness.enhance(1.3)
-    except Exception:
+        gray_enhanced = ImageOps.autocontrast(gray, cutoff=1)
+        
+        # 3. Enhance Contrast & Sharpness
+        contrast_enhancer = ImageEnhance.Contrast(gray_enhanced)
+        contrasted = contrast_enhancer.enhance(1.6)
+        
+        sharp_enhancer = ImageEnhance.Sharpness(contrasted)
+        sharpened = sharp_enhancer.enhance(1.5)
+        
+        # 4. Adaptive Binarization / Contrast Stretching
+        # Enhances dark text pixels while pushing paper tint/shadows to pure white
+        lut = [255 if x > 145 else (0 if x < 85 else int((x - 85) * (255.0 / 60.0))) for x in range(256)]
+        binarized = sharpened.point(lut, mode='L')
+        
+        return binarized
+    except Exception as e:
+        print(f"Preprocessing notice: {e}")
         return image.convert('RGB') if image.mode != 'RGB' else image
 
 def ocr_single_image(image, lang='eng'):
-    """Run optimized Tesseract OCR on a PIL Image."""
+    """
+    Run multi-stage Tesseract OCR on a PIL Image with PSM Auto-Fallback:
+    - Primary: PSM 3 (Fully automatic page segmentation)
+    - Fallback 1: PSM 6 (Uniform single block of text - Receipts, Badges, Single Paragraphs)
+    - Fallback 2: PSM 11 (Sparse text - Stray words, Labels, Unstructured text)
+    """
     prep_img = preprocess_image(image)
-    config = r'--oem 1 --psm 3'
-    try:
-        text = pytesseract.image_to_string(prep_img, lang=lang, config=config)
-    except Exception as e:
-        print(f"Tesseract lang '{lang}' error: {e}. Falling back to 'eng'")
+    
+    # Try combinations of languages if standard lang is provided
+    search_langs = [lang]
+    if lang != 'eng' and 'eng' not in lang:
+        search_langs.append(f"{lang}+eng")
+        search_langs.append('eng')
+
+    psm_modes = [3, 6, 11]
+    best_text = ""
+    
+    for current_lang in search_langs:
+        for psm in psm_modes:
+            config = f'--oem 1 --psm {psm}'
+            try:
+                text = pytesseract.image_to_string(prep_img, lang=current_lang, config=config).strip()
+                # If text is substantial (> 10 words or > 40 chars), accept immediately
+                if len(text.split()) >= 10 or len(text) > 40:
+                    return text
+                # Keep the longest extracted result across fallbacks
+                if len(text) > len(best_text):
+                    best_text = text
+            except Exception as e:
+                print(f"Tesseract PSM {psm} / Lang '{current_lang}' attempt notice: {e}")
+                continue
+                
+    # If preprocessed image produced very sparse text, attempt raw image scan as last safety net
+    if not best_text:
         try:
-            text = pytesseract.image_to_string(prep_img, lang='eng', config=config)
+            raw_text = pytesseract.image_to_string(image, lang='eng', config='--oem 1 --psm 3').strip()
+            if len(raw_text) > len(best_text):
+                best_text = raw_text
         except Exception:
-            text = ""
-    return text.strip()
+            pass
+
+    return best_text.strip()
 
 def process_pdf_ocr(pdf_bytes, lang='eng'):
     """
     Hybrid PDF extraction:
-    1. First tries fast digital text extraction.
-    2. If scanned / low text, renders high-DPI page images and runs OCR on each page.
+    1. First tries fast digital text extraction via pypdf.
+    2. If scanned / low text, renders high-DPI (300 DPI) page images & applies multi-pass OCR.
     """
     page_texts = []
     
@@ -87,9 +192,9 @@ def process_pdf_ocr(pdf_bytes, lang='eng'):
     except Exception as e:
         print(f"Digital PDF extract fallback to OCR: {e}")
 
-    # Step 2: Optical Character Recognition on PDF pages (via poppler pdftoppm)
+    # Step 2: High-DPI Optical Character Recognition on PDF pages (300 DPI)
     try:
-        images = convert_from_bytes(pdf_bytes, dpi=220, thread_count=4)
+        images = convert_from_bytes(pdf_bytes, dpi=300, thread_count=4)
         for i, img in enumerate(images):
             page_text = ocr_single_image(img, lang=lang)
             if page_text:
@@ -107,9 +212,9 @@ def health():
     return jsonify({
         "status": "online",
         "service": "ScanVault Core API",
-        "engine": "Tesseract 5.5.3 Native (Eng + Hin) + Poppler PDF",
-        "version": "2.1.0",
-        "features": ["Image OCR", "Multi-Page PDF OCR", "Hindi + English", "Instant PDF Cloud Hosting"]
+        "engine": "Tesseract 5.5.3 Native (Eng + Hin) + Poppler PDF [vL9.1]",
+        "version": "vL9.1",
+        "features": ["Image OCR", "Multi-Page PDF OCR", "Hindi + English", "Instant PDF Cloud Hosting", "Advanced Preprocessing Pipeline vL9.1"]
     })
 
 # --------------------------------------------------------------------------
@@ -121,8 +226,8 @@ def process_ocr():
         json_data = request.get_json(silent=True) or {}
         lang = request.form.get('lang') or json_data.get('lang') or 'eng'
         
-        text = ""
-        page_count = 1
+        file_bytes = None
+        filename = "document.png"
         
         # A. Remote URL check (from Context Menu on web image)
         image_url = json_data.get('image_url') or json_data.get('url')
@@ -130,28 +235,16 @@ def process_ocr():
             req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as resp:
                 file_bytes = resp.read()
-                image = Image.open(io.BytesIO(file_bytes))
-                text = ocr_single_image(image, lang=lang)
-                page_count = 1
+                filename = "web_image.png"
         else:
             # B. File Upload Check (Image or PDF)
             upload_file = request.files.get('image') or request.files.get('file')
-            
             if upload_file:
-                filename = upload_file.filename.lower()
+                filename = upload_file.filename or "upload.png"
                 file_bytes = upload_file.read()
-                
-                if filename.endswith('.pdf') or upload_file.content_type == 'application/pdf':
-                    text, page_count = process_pdf_ocr(file_bytes, lang=lang)
-                else:
-                    image = Image.open(io.BytesIO(file_bytes))
-                    text = ocr_single_image(image, lang=lang)
-                    page_count = 1
-
             else:
                 # C. Base64 / JSON Payload Check
                 raw_base64 = json_data.get('image') or json_data.get('image_base64') or json_data.get('dataUrl')
-                
                 if not raw_base64:
                     return jsonify({
                         "success": False,
@@ -161,14 +254,29 @@ def process_ocr():
                 if ',' in raw_base64:
                     raw_base64 = raw_base64.split(',', 1)[1]
                 
-                raw_bytes = base64.b64decode(raw_base64)
-                
-                if raw_bytes.startswith(b'%PDF'):
-                    text, page_count = process_pdf_ocr(raw_bytes, lang=lang)
+                file_bytes = base64.b64decode(raw_base64)
+                if file_bytes.startswith(b'%PDF'):
+                    filename = "document.pdf"
                 else:
-                    image = Image.open(io.BytesIO(raw_bytes))
-                    text = ocr_single_image(image, lang=lang)
-                    page_count = 1
+                    filename = "screenshot.png"
+
+        if not file_bytes:
+            return jsonify({"success": False, "error": "Empty file data received"}), 400
+
+        # Try fast upstream hardware-accelerated API first
+        upstream_res = call_upstream_ocr(file_bytes, filename=filename, lang=lang)
+        if upstream_res and upstream_res.get("success"):
+            return jsonify(upstream_res)
+
+        # Fallback to local processing if API is unavailable
+        text = ""
+        page_count = 1
+        if filename.lower().endswith('.pdf') or file_bytes.startswith(b'%PDF'):
+            text, page_count = process_pdf_ocr(file_bytes, lang=lang)
+        else:
+            image = Image.open(io.BytesIO(file_bytes))
+            text = ocr_single_image(image, lang=lang)
+            page_count = 1
 
         clean_text = text.strip()
         words = len(clean_text.split()) if clean_text else 0
@@ -179,7 +287,8 @@ def process_ocr():
             "text": clean_text,
             "pages": page_count,
             "word_count": words,
-            "char_count": chars
+            "char_count": chars,
+            "engine": "local_tesseract_fallback"
         })
 
     except Exception as e:

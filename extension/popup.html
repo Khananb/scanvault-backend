@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScanVault - OCR & PDF Tools</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-row">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3"/>
+              <rect x="7" y="7" width="10" height="10" rx="2"/>
+            </svg>
+          </div>
+          <div class="brand-title">
+            <h1>ScanVault</h1>
+            <span class="badge-tag">vK.9</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Connection Status Pill -->
+          <div id="connection-pill" class="status-pill checking" title="Click to test connection">
+            <span class="status-dot"></span>
+            <span id="connection-text" class="status-label">Checking...</span>
+          </div>
+          
+          <!-- Settings Toggle Button -->
+          <button id="btn-toggle-settings" class="icon-btn-ghost" title="API Settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings Panel (Collapsible) -->
+      <div id="settings-panel" class="settings-drawer hidden">
+        <div class="settings-title">API Endpoint Server</div>
+        <div class="settings-field">
+          <div class="url-input-group">
+            <input type="text" id="backend-url-input" placeholder="https://scanvault-backend-1.onrender.com" value="https://scanvault-backend-1.onrender.com">
+            <button id="btn-test-backend" class="btn-sm secondary">Test</button>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <button id="preset-render" type="button" class="btn-sm secondary" style="flex:1; font-size:10px; padding:4px 6px;">🌐 Render</button>
+            <button id="preset-tunnel" type="button" class="btn-sm secondary" style="flex:1; font-size:10px; padding:4px 6px;">☁️ Cloudflare</button>
+            <button id="preset-lan" type="button" class="btn-sm secondary" style="flex:1; font-size:10px; padding:4px 6px;">📶 Termux</button>
+          </div>
+          <span class="settings-hint" style="margin-top:6px; display:block;">Production & local endpoints for OCR & PDF hosting</span>
+        </div>
+        <button id="btn-save-settings" class="btn-sm primary full-width">Save Endpoint</button>
+      </div>
+      
+      <!-- Nav Tabs -->
+      <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="ocr">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <span>OCR Scanner</span>
+        </button>
+        <button class="tab-btn" data-tab="pdf">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <span>PDF Host</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- Tab 1: OCR Scanner -->
+    <main id="tab-ocr" class="tab-content active">
+      <!-- Quick Actions Grid: Full Tab Scan vs Area Snip -->
+      <div class="action-grid-dual">
+        <button id="btn-snip-area" class="action-btn-primary secondary-accent">
+          <div class="btn-icon-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M6 3v3H3M18 3v3h3M6 21v-3H3M18 21v-3h3"/>
+              <rect x="7" y="7" width="10" height="10" rx="1" stroke-dasharray="2 2"/>
+            </svg>
+          </div>
+          <div class="btn-labels">
+            <span class="label-main">Snip Area</span>
+            <span class="label-sub">Drag box to crop & scan</span>
+          </div>
+        </button>
+
+        <button id="btn-scan-tab" class="action-btn-primary">
+          <div class="btn-icon-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <div class="btn-labels">
+            <span class="label-main">Full Tab</span>
+            <span class="label-sub">Scan whole screen</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Language Selector Bar -->
+      <div class="language-bar">
+        <label for="ocr-lang-select">OCR Language:</label>
+        <select id="ocr-lang-select" class="lang-dropdown">
+          <option value="eng" selected>English (Default)</option>
+          <option value="spa">Spanish (Español)</option>
+          <option value="fra">French (Français)</option>
+          <option value="deu">German (Deutsch)</option>
+          <option value="chi_sim">Chinese (Simplified)</option>
+          <option value="jpn">Japanese (日本語)</option>
+        </select>
+      </div>
+
+      <!-- Drag & Drop Zone for Images AND PDFs -->
+      <div class="drop-zone" id="ocr-drop-zone">
+        <input type="file" id="ocr-file-input" accept="image/*,application/pdf,.pdf" class="file-input-hidden">
+        <div class="drop-content">
+          <div class="drop-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="12" y2="12"/>
+              <line x1="15" y1="15" x2="12" y2="12"/>
+            </svg>
+          </div>
+          <p class="drop-text">Drop image or PDF to extract text</p>
+          <span class="drop-sub">or <span class="browse-link">browse files</span> • paste with Ctrl+V</span>
+          <span class="drop-formats">PDF, PNG, JPG, WEBP, TIFF</span>
+        </div>
+      </div>
+
+      <!-- Processing State -->
+      <div id="ocr-status-card" class="card status-card hidden">
+        <div class="status-header">
+          <div class="spinner"></div>
+          <span id="ocr-status-text">Working...</span>
+        </div>
+        <div class="progress-track">
+          <div id="ocr-progress-bar" class="progress-fill indeterminate"></div>
+        </div>
+      </div>
+
+      <!-- OCR Result Area -->
+      <div id="ocr-result-card" class="card result-card hidden">
+        <div class="result-header">
+          <div class="result-meta">
+            <span class="meta-badge">Extracted Text</span>
+            <span id="ocr-meta-info" class="meta-stats">0 words</span>
+          </div>
+          <div class="result-actions">
+            <button id="btn-copy-ocr" class="action-icon-btn" title="Copy Text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+            <button id="btn-download-ocr" class="action-icon-btn" title="Download .txt">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+            <button id="btn-clear-ocr" class="action-icon-btn" title="Clear">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <textarea id="ocr-output-text" placeholder="Extracted text will appear here..."></textarea>
+        
+        <!-- Post-Processing Tools -->
+        <div class="post-tools-row">
+          <button id="btn-clean-lines" class="btn-tool" title="Unwrap broken lines into smooth paragraphs">
+            🧹 Clean Paragraphs
+          </button>
+          <button id="btn-format-csv" class="btn-tool" title="Convert multi-column text to CSV format">
+            📊 Format CSV
+          </button>
+          <button id="btn-format-json" class="btn-tool" title="Wrap text into structured JSON">
+            ⚙️ JSON Format
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Tab 2: PDF Hosting -->
+    <main id="tab-pdf" class="tab-content">
+      <div class="drop-zone" id="pdf-drop-zone">
+        <input type="file" id="pdf-file-input" accept="application/pdf" class="file-input-hidden">
+        <div class="drop-content">
+          <div class="drop-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M9 15v-6h2a2 2 0 0 1 0 4H9"/>
+            </svg>
+          </div>
+          <p class="drop-text">Drop PDF to host online</p>
+          <span class="drop-sub">or <span class="browse-link">browse PDF files</span></span>
+          <span class="drop-formats">Instant shareable shortlinks • No account required</span>
+        </div>
+      </div>
+
+      <!-- Uploading State -->
+      <div id="pdf-upload-card" class="card status-card hidden">
+        <div class="status-header">
+          <div class="spinner"></div>
+          <span id="pdf-upload-status">Working...</span>
+        </div>
+        <div class="progress-track">
+          <div id="pdf-progress-bar" class="progress-fill indeterminate"></div>
+        </div>
+      </div>
+
+      <!-- PDF Link Success Card -->
+      <div id="pdf-success-card" class="card success-card hidden">
+        <div class="success-header">
+          <div class="success-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <span>PDF Hosted Successfully</span>
+        </div>
+        
+        <div class="file-meta-row">
+          <span id="pdf-filename-display" class="file-name">document.pdf</span>
+          <span id="pdf-filesize-display" class="file-size">1.2 MB</span>
+        </div>
+
+        <div class="link-group">
+          <input type="text" id="pdf-share-url" readonly value="">
+          <button id="btn-copy-pdf" class="btn-copy">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>Copy</span>
+          </button>
+        </div>
+
+        <!-- Interactive QR Code Container -->
+        <div id="qr-container" class="qr-box hidden">
+          <div id="qr-code-display" class="qr-canvas-wrap"></div>
+          <span class="qr-hint">Scan with phone camera to open PDF</span>
+        </div>
+
+        <div class="footer-actions">
+          <button id="btn-toggle-qr" class="btn-outline">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span>QR Code</span>
+          </button>
+          <a id="pdf-open-link" href="#" target="_blank" class="btn-outline">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            <span>Open Tab</span>
+          </a>
+          <button id="btn-host-another" class="btn-outline">
+            <span>Upload New</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Recent Uploads History -->
+      <div class="history-block">
+        <div class="history-header">
+          <span>Recent Uploads</span>
+          <button id="btn-clear-history" class="btn-link">Clear</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="history-empty">No hosted files yet</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Minimal Toast Notification -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
