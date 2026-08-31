@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ScanVault - OCR Scanner & PDF Cloud",
-  "version": "1.9.1",
-  "version_name": "vK.9",
+  "version": "1.11.0",
+  "version_name": "vK.11",
   "description": "High-speed OCR Text Extractor, Snipping Tool, Multi-Page PDF OCR, and Free PDF Cloud Hosting.",
   "permissions": [
     "activeTab",
